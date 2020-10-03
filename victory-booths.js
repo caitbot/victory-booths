@@ -429,7 +429,6 @@ function createCheckin() {
   var fileName = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d, h:mmaaa"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
 
   // create file
-  var folder = DriveApp.getFolderById("10hnMB9pIpdKsAhGiiH1EBP154XQ2NgNQ");
   var file = folder.createFile(fileName, "");
 
   var heading = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d, h:mmaaa"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
@@ -448,6 +447,94 @@ function createCheckin() {
 
 var table = [['Name', 'L / P / T', 'Qty', 'Phone/Email', 'Food/Drink']].join(contents);
 body.appendTable(table);
+  });
+}
+
+function createCheckin() {
+  var activeSheet = SpreadsheetApp.getActiveSheet();
+
+  var selection = activeSheet.getSelection();
+
+  // set up dialog boxes
+  var ui = SpreadsheetApp.getUi();
+
+  // check only one range selected
+  if (selection.getActiveRangeList().getRanges().length > 1) {
+    ui.alert('Unable to process multiple selections.');
+    return;
+  }
+
+  // check selection starts at the top
+  if (selection.getActiveRange().getRow() > 1) {
+    ui.alert('Select a whole column, from the very top.');
+    return;
+  }
+
+  // get sheet data
+  var ss = SpreadsheetApp.getActive();
+  var sheet = ss.getSheetByName('Form Responses 1');
+  var range = sheet.getDataRange();
+  var values = range.getValues();
+
+  // check selection is full height
+  if (selection.getActiveRange().getHeight() < range.getHeight()) {
+    ui.alert('Select a whole column.');
+    return;
+  }
+
+  // check selection is single column
+  if (selection.getActiveRange().getWidth() > 1) {
+    ui.alert('Select a single column.');
+    return;
+  }
+
+  var daysSessions = selection.getActiveRange().getDisplayValues();
+
+  // define column map
+  var EMAIL = 1;
+  var FNAME = 2;
+  var LNAME = 3;
+  var PHONE = 4;
+
+  var sessions = new Map();
+  // create list of indexes for each session
+  for (var i = 1; i < daysSessions.length; i++) {
+    var sessionTimeDate = daysSessions[i][0]
+    if (sessionTimeDate !== "") {
+      if (!sessions.has(sessionTimeDate)) {
+        sessions.set(sessionTimeDate, []);
+      }
+      sessions.get(sessionTimeDate).push(i);
+    }
+  }
+
+  // assemble date & time info
+  var date = new Date(daysSessions[0][0] + ' 2020');
+  var fileName = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
+
+  // create file
+  var folder = DriveApp.getFolderById("10hnMB9pIpdKsAhGiiH1EBP154XQ2NgNQ");
+  var file = folder.createFile(fileName, "");
+
+  var heading = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
+  var body = file.getBody();
+
+  // create page for each session
+  sessions.forEach((personIndexList, sessionDateTime, map) => {
+    // session heading
+    body.appendParagraph(heading.toString()).setBold(true);
+    body.appendParagraph(sessionDateTime.toString()).setBold(false);
+
+    contents = []
+    // build table contents
+    personIndexList.forEach((index) => {
+      contents.push(["🗹 " + values[index][FNAME] + " " + values[index][LNAME], ' ', ' ', values[index][PHONE] + '\n' + values[index][EMAIL], ' ']);
+    });
+
+    var table = [['Name', 'L / P / T', 'Qty', 'Phone/Email', 'Food/Drink']].concat(contents);
+    body.appendTable(table);
+
+    body.appendPageBreak();
   });
 }
 
