@@ -137,6 +137,13 @@ function test() {
 }
 
 
+function testContacts() {
+  var phone = '+12016610071';
+//  Logger.log(ContactsApp.getContactGroups().map(g => g.getName()).join(', '));
+  addContactByPhone(phone, "N", "E", "");
+}
+
+
 
 
 // ************************************************************************************************
@@ -199,13 +206,16 @@ function sendInvites() {
 
   // iterate through spreadsheet: all submissions (rows)
   for (var i = 1; i < values.length; i++) { // TODO: run in reverse order, stop at first already processed
-    if (!values[i][INVITED]) {
 
-      // get details
-      var fname = values[i][FNAME];
-      var lname = values[i][LNAME];
-      var phone = values[i][PHONE];
-      var email = values[i][EMAIL];
+    // get details
+    var fname = values[i][FNAME];
+    var lname = values[i][LNAME];
+    var email = values[i][EMAIL];
+    var phone = values[i][PHONE];
+
+    addContactByPhone(phone, fname, lname, email);
+
+    if (!values[i][INVITED]) {
 
       Logger.log('Row ' + i + ': ' + email);
 
@@ -404,89 +414,6 @@ function createCheckin() {
     ui.alert('Select a single column.');
     return;
   }
-  // TODO: handle multiple column selection
-
-  var daysSessions = selection.getActiveRange().getValues();
-
-  // define column map
-  var EMAIL = 1;
-  var FNAME = 2;
-  var LNAME = 3;
-  var PHONE = 4;
-
-  var sessions = new Map();
-  // create list of indexes for each session
-  for (var i = 1; i < daysSessions.length; i++) {
-    var sessionTimeDate = daysSessions[i]
-    if (!sessions.has(sessionTimeDate)) {
-      sessions.set(sessionTimeDate, []);
-    }
-    sessions.get(sessionTimeDate).append(i);
-  }
-
-  // assemble date & time info
-  var date = new Date(values[0][j] + ', 2020');
-  var fileName = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d, h:mmaaa"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
-
-  // create file
-  var file = folder.createFile(fileName, "");
-
-  var heading = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d, h:mmaaa"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
-  var body = file.getBody();
-
-  // create checkin for each session
-  sessions.forEach((personIndexList, sessionDateTime, map) => {
-  body.appendParagraph(heading);
-  body.appendParagraph(sessionDateTime);
-
-  contents = []
-  // build table contents
-  personIndexList.forEach((index) => {
-                          contents.append([values[index][FNAME] + values[index][LNAME], ' ', ' ', values[index][PHONE] + '\n' + values[index][EMAIL], ' ']);
-});
-
-var table = [['Name', 'L / P / T', 'Qty', 'Phone/Email', 'Food/Drink']].join(contents);
-body.appendTable(table);
-  });
-}
-
-function createCheckin() {
-  var activeSheet = SpreadsheetApp.getActiveSheet();
-
-  var selection = activeSheet.getSelection();
-
-  // set up dialog boxes
-  var ui = SpreadsheetApp.getUi();
-
-  // check only one range selected
-  if (selection.getActiveRangeList().getRanges().length > 1) {
-    ui.alert('Unable to process multiple selections.');
-    return;
-  }
-
-  // check selection starts at the top
-  if (selection.getActiveRange().getRow() > 1) {
-    ui.alert('Select a whole column, from the very top.');
-    return;
-  }
-
-  // get sheet data
-  var ss = SpreadsheetApp.getActive();
-  var sheet = ss.getSheetByName('Form Responses 1');
-  var range = sheet.getDataRange();
-  var values = range.getValues();
-
-  // check selection is full height
-  if (selection.getActiveRange().getHeight() < range.getHeight()) {
-    ui.alert('Select a whole column.');
-    return;
-  }
-
-  // check selection is single column
-  if (selection.getActiveRange().getWidth() > 1) {
-    ui.alert('Select a single column.');
-    return;
-  }
 
   var daysSessions = selection.getActiveRange().getDisplayValues();
 
@@ -497,6 +424,15 @@ function createCheckin() {
   var PHONE = 4;
 
   var sessions = new Map();
+  // TODO: remove this hack to sort by session and replace with something real (see below)
+  sessions.set("Session 1: 12:00PM", []);
+  sessions.set("Session 2: 1:00PM", []);
+  sessions.set("Session 3: 2:00PM", []);
+  sessions.set("Session 4: 3:00PM", []);
+  sessions.set("Session 5: 4:00PM", []);
+  sessions.set("Session 6: 5:00PM", []);
+  sessions.set("Session 7: 6:00PM", []);
+
   // create list of indexes for each session
   for (var i = 1; i < daysSessions.length; i++) {
     var sessionTimeDate = daysSessions[i][0]
@@ -510,16 +446,26 @@ function createCheckin() {
 
   // assemble date & time info
   var date = new Date(daysSessions[0][0] + ' 2020');
-  var fileName = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
+  var fileName = Utilities.formatDate(date, "US/Pacific", "yyyy-MM-dd") + ' - checkin sheet'; // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
 
   // create file
-  var folder = DriveApp.getFolderById("10hnMB9pIpdKsAhGiiH1EBP154XQ2NgNQ");
-  var file = folder.createFile(fileName, "");
+  var file = DocumentApp.create(fileName);
 
   var heading = Utilities.formatDate(date, "US/Pacific", "EEEE, MMM d"); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
   var body = file.getBody();
 
+  body.setMarginLeft(30);
+  body.setMarginRight(30);
+  body.setMarginTop(30);
+  body.setMarginBottom(30);
+
   // create page for each session
+  // TODO: sort by session in a non-hacky way (sort alphabetically by key)
+  //  var orderedSessions = new Map();
+  //  Object.keys(sessions).sort().forEach((key) => {
+  //    orderedSessions.set(key, sessions.get(key));
+  //  });
+
   sessions.forEach((personIndexList, sessionDateTime, map) => {
     // session heading
     body.appendParagraph(heading.toString()).setBold(true);
@@ -528,11 +474,21 @@ function createCheckin() {
     contents = []
     // build table contents
     personIndexList.forEach((index) => {
-      contents.push(["🗹 " + values[index][FNAME] + " " + values[index][LNAME], ' ', ' ', values[index][PHONE] + '\n' + values[index][EMAIL], ' ']);
+                            contents.push(["⧠ " + values[index][FNAME] + " " + values[index][LNAME], '⧠ ⧠ ⧠', ' ', 'p: ' + values[index][PHONE] + '\ne: ' + values[index][EMAIL], ' ']);
     });
+    // TODO: sort contents alphabetically by fname
 
     var table = [['Name', 'L / P / T', 'Qty', 'Phone/Email', 'Food/Drink']].concat(contents);
-    body.appendTable(table);
+
+    while (table.length < 16) {
+      table.push(['', '⧠ ⧠ ⧠', '', 'p:\ne:', '']);
+    }
+
+    var t = body.appendTable(table);
+    t.setColumnWidth(0, 120);
+    t.setColumnWidth(1, 50);
+    t.setColumnWidth(2, 50);
+    t.setColumnWidth(4, 120);
 
     body.appendPageBreak();
   });
@@ -567,6 +523,19 @@ function createCheckin() {
 
 
 // TODO: reformat into checkbox grid form, auto update grid
+
+
+
+
+function addContactByPhone(phone, fname, lname, email) {
+  if ((ContactsApp.getContactsByPhone(phone, '').length == 0) && (ContactsApp.getContactsByPhone(phone, ContactsApp.Field.MAIN_PHONE).length == 0)) {
+    var c = ContactsApp.createContact(fname, lname, email);
+    c.addPhone(ContactsApp.Field.MAIN_PHONE, phone);
+
+    var group = ContactsApp.getContactGroup("System Group: My Contacts");
+    group.addContact(c);
+  }
+}
 
 
 // create calendar event & send invite
