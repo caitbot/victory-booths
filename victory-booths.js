@@ -357,12 +357,12 @@ function sendFollowups() {
 
     for (var i = 1; i < values.length; i++) {
       var addemail = values[i][EMAIL];
-      if (!(["", "NO SHOW", "CANCEL"].includes(followups[i])) {
+      if (!(["", "NO SHOW", "CANCEL"].includes(followups[i]))) {
         if (thankyouEmails.indexOf(addemail) < 0) {
           thankyouEmails.push(addemail);
           thankyouNames.push(values[i][FNAME]);
         }
-      } elseif (followups[i] == "NO SHOW") {
+      } else if (followups[i] === "NO SHOW") {
         if (noshowEmails.indexOf(addemail) < 0) {
           noshowEmails.push(addemail);
           noshowNames.push(values[i][FNAME]);
