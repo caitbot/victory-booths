@@ -357,12 +357,12 @@ function sendFollowups() {
 
     for (var i = 1; i < values.length; i++) {
       var addemail = values[i][EMAIL];
-      if (!(["", "NO SHOW", "CANCEL"].includes(followup[i])) {
+      if (!(["", "NO SHOW", "CANCEL"].includes(followups[i])) {
         if (thankyouEmails.indexOf(addemail) < 0) {
           thankyouEmails.push(addemail);
           thankyouNames.push(values[i][FNAME]);
         }
-      } elseif (followup[i] == "NO SHOW") {
+      } elseif (followups[i] == "NO SHOW") {
         if (noshowEmails.indexOf(addemail) < 0) {
           noshowEmails.push(addemail);
           noshowNames.push(values[i][FNAME]);
@@ -392,7 +392,7 @@ function sendThankYouEmails(emails, names) {
 function sendSorryYouMissedUsEmails(emails, names) {
   // email content
   var subject = "Sorry you missed us!";
-  var html = getDocAsHTML_('1b1zCV_xhLJ45Vt6nTHpRqCHeRsbzFAJ1ms6nNmV4RVo');
+  var html = getDocAsHTML_('1DcTYIntHnhEnFFaAsv5GsyzKP7pF01wSI_j9YnfCEiM');
   var content = html;
   var body = "To view this email, please enable html in your email client.";
 
