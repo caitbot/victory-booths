@@ -280,7 +280,7 @@ function subStringIntoTag(tag, sub, string) {
 
 
 /*
- * Send "thank you" followup emails
+ * Send "thank you" or "sorry you missed us" followup emails
  */
 function sendFollowups() {
 
@@ -334,46 +334,72 @@ function sendFollowups() {
   }
   // TODO: handle multiple column selection
 
-  var thankyous = selection.getActiveRange().getValues();
+  var followups = selection.getActiveRange().getValues();
 
   // confirm date to thank
-  var senddate = new Date(thankyous[0] + ' 2020');
+  var senddate = new Date(followups[0] + ' 2020');
   var result = ui.alert(
     'Please confirm: ' + Utilities.formatDate(senddate, "US/Pacific", "EEEE, MMM d"),
-      'Are you sure you want to send thank you emails for the following?\n   • '
+      'Are you sure you want to send "thank you" and "sorry you missed us" emails for the following?\n   • '
       + Utilities.formatDate(senddate, "US/Pacific", "EEEE, MMM d")
       + '\n   • (column ' + selection.getActiveRange().getA1Notation().split(':')[0] + ')',
         ui.ButtonSet.YES_NO);
   if (result == ui.Button.YES) {
+    Logger.log(followups[0]);
     // define column map
     var EMAIL = 1;
     var FNAME = 2;
 
-    // email content
-    var subject = "You did something to help us win!";
-    var html = getDocAsHTML_('1b1zCV_xhLJ45Vt6nTHpRqCHeRsbzFAJ1ms6nNmV4RVo');
-    var content = html;
-    var body = "To view this email, please enable html in your email client.";
+    var thankyouEmails = [];
+    var thankyouNames = [];
+    var noshowEmails = [];
+    var noshowNames = [];
 
-    Logger.log(thankyous[0]);
-    var emails = [];
-    var names = [];
     for (var i = 1; i < values.length; i++) {
       var addemail = values[i][EMAIL];
-      if (!(thankyous[i] == "")) {
-        if (emails.indexOf(addemail) < 0) {
-          emails.push(addemail);
-          names.push(values[i][FNAME]);
+      if (!(["", "NO SHOW", "CANCEL"].includes(followup[i])) {
+        if (thankyouEmails.indexOf(addemail) < 0) {
+          thankyouEmails.push(addemail);
+          thankyouNames.push(values[i][FNAME]);
+        }
+      } elseif (followup[i] == "NO SHOW") {
+        if (noshowEmails.indexOf(addemail) < 0) {
+          noshowEmails.push(addemail);
+          noshowNames.push(values[i][FNAME]);
         }
       }
     }
-
-    // send emails
-    for (var i = 0; i < emails.length; i++) {
-      sendEmail_(emails[i], subject, body, subStringIntoTag('{NAME}', names[i], content));
-      Logger.log(emails[i]);
-    }
+    sendThankYouEmails(thankyouEmails, thankyouNames);
+    sendSorryYouMissedUsEmails(noshowEmails, noshowNames);
     ui.alert(emails.length + ' emails sent!');
+  }
+}
+
+function sendThankYouEmails(emails, names) {
+  // email content
+  var subject = "You did something to help us win!";
+  var html = getDocAsHTML_('1b1zCV_xhLJ45Vt6nTHpRqCHeRsbzFAJ1ms6nNmV4RVo');
+  var content = html;
+  var body = "To view this email, please enable html in your email client.";
+
+  // send emails
+  for (var i = 0; i < emails.length; i++) {
+    sendEmail_(emails[i], subject, body, subStringIntoTag('{NAME}', names[i], content));
+    Logger.log(emails[i]);
+  }
+}
+
+function sendSorryYouMissedUsEmails(emails, names) {
+  // email content
+  var subject = "Sorry you missed us!";
+  var html = getDocAsHTML_('1b1zCV_xhLJ45Vt6nTHpRqCHeRsbzFAJ1ms6nNmV4RVo');
+  var content = html;
+  var body = "To view this email, please enable html in your email client.";
+
+  // send emails
+  for (var i = 0; i < emails.length; i++) {
+    sendEmail_(emails[i], subject, body, subStringIntoTag('{NAME}', names[i], content));
+    Logger.log(emails[i]);
   }
 }
 
