@@ -143,6 +143,37 @@ function testContacts() {
   addContactByPhone(phone, "N", "E", "");
 }
 
+function addAllContacts() {
+  var cal = CalendarApp.getCalendarById(ScriptProperties.getProperty('calId'));
+
+  var ss = SpreadsheetApp.getActive();
+  var sheet = ss.getSheetByName('Form Responses 1');
+  var range = sheet.getDataRange();
+  var values = range.getValues();
+
+  // define columns
+  var EMAIL = 1;
+  var FNAME = 2;
+  var LNAME = 3;
+  var PHONE = 4;
+
+  // iterate through spreadsheet: all submissions (rows)
+  for (var i = 1; i < values.length; i++) {
+
+    // get details
+    var fname = values[i][FNAME];
+    var lname = values[i][LNAME];
+    var email = values[i][EMAIL];
+    var phone = values[i][PHONE];
+
+    try {
+      addContactByPhone(phone, fname, lname, email);
+    } catch (e) {
+      Logger.log(e);
+      Logger.log([fname, lname, email, phone].join(" "));
+    }
+  }
+}
 
 
 
@@ -167,7 +198,7 @@ function onOpen() {
  * Auto-trigger on form submit
  */
 function _onFormSubmit(e) {
-  sendInvites(); // TODO: improve efficiency by not running everything
+  //sendInvites(); // TODO: improve efficiency by not running everything
 }
 
 
@@ -213,7 +244,12 @@ function sendInvites() {
     var email = values[i][EMAIL];
     var phone = values[i][PHONE];
 
-    addContactByPhone(phone, fname, lname, email);
+    try {
+      addContactByPhone(phone, fname, lname, email);
+    } catch (e) {
+      Logger.log(e);
+      Logger.log(fname + lname + email + phone);
+    }
 
     if (!values[i][INVITED]) {
 
