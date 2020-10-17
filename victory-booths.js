@@ -1,6 +1,8 @@
 /**
  * Use this to do one-off operations.
  */
+
+//// INIT ////
 function __manualInit() {
   // Store the ID for the Calendar, which is needed to retrieve events by ID.
   var cal = CalendarApp.getCalendarsByName("Victory Booths @ Manny's")[0];
@@ -18,7 +20,28 @@ function __manualInit2() {
       .create();
 }
 
+// define columns
+var TIMESTAMP = 0;
+var EMAIL = 1;
+var FNAME = 2;
+var LNAME = 3;
+var PHONE = 4;
+var INVITED = 63;
 
+/**
+ * Insert Custom menu when the spreadsheet opens.
+ */
+function onOpen() {
+  var menu = []
+  menu.push({name: 'Send Calendar Invites', functionName: 'sendInvites'});
+  menu.push({name: 'Send Followups', functionName: 'sendFollowups'});
+  menu.push({name: 'Create Check-in', functionName: 'createCheckin'});
+
+  SpreadsheetApp.getActive().addMenu('Custom', menu);
+}
+
+
+//// TESTING ////
 // test cal events
 function testCal() {
 
@@ -29,48 +52,6 @@ function testCal() {
 function twilioTest() {
   sendSms('2016610071', "This is a test via GoogleApps");
 }
-
-function sendSms(to, body) {
-  var messages_url = "https://api.twilio.com/2010-04-01/Accounts/AC8165e299f98be421d561984e13dfa51f/Messages.json";
-
-  var payload = {
-    "To": to,
-    "Body" : body,
-    "From" : "+12055742251‬"
-  };
-
-  var options = {
-    "method" : "post",
-    "payload" : payload
-  };
-
-  options.headers = {
-    "Authorization" : "Basic " + Utilities.base64Encode("AC8165e299f98be421d561984e13dfa51f:94d62ecc50254bfd8b92049b568eef2d")
-  };
-
-  UrlFetchApp.fetch(messages_url, options);
-}
-
-function sendAll() {
-  var sheet = SpreadsheetApp.getActiveSheet();
-  var startRow = 2;
-  var numRows = sheet.getLastRow() - 1;
-  var dataRange = sheet.getRange(startRow, 1, numRows, 2)
-  var data = dataRange.getValues();
-
-  for (i in data) {
-    var row = data[i];
-    try {
-      response_data = sendSms(row[0], row[1]);
-      status = "sent";
-    } catch(err) {
-      Logger.log(err);
-      status = "error";
-    }
-    sheet.getRange(startRow + Number(i), 3).setValue(status);
-  }
-}
-
 
 
 // test
@@ -144,30 +125,114 @@ function testContacts() {
 }
 
 
+//// MESSAGE SENDING ////
+function sendSms(to, body) {
+  var messages_url = "https://api.twilio.com/2010-04-01/Accounts/AC8165e299f98be421d561984e13dfa51f/Messages.json";
 
+  var payload = {
+    "To": to,
+    "Body" : body,
+    "From" : "+12055742251‬"
+  };
 
-// ************************************************************************************************
+  var options = {
+    "method" : "post",
+    "payload" : payload
+  };
 
-/**
- * Insert Custom menu when the spreadsheet opens.
- */
-function onOpen() {
-  var menu = []
-  menu.push({name: 'Send Calendar Invites', functionName: 'sendInvites'});
-  menu.push({name: 'Send Followups', functionName: 'sendFollowups'});
-  menu.push({name: 'Create Check-in', functionName: 'createCheckin'});
+  options.headers = {
+    "Authorization" : "Basic " + Utilities.base64Encode("AC8165e299f98be421d561984e13dfa51f:94d62ecc50254bfd8b92049b568eef2d")
+  };
 
-  SpreadsheetApp.getActive().addMenu('Custom', menu);
+  UrlFetchApp.fetch(messages_url, options);
 }
 
 
+function sendAll() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var startRow = 2;
+  var numRows = sheet.getLastRow() - 1;
+  var dataRange = sheet.getRange(startRow, 1, numRows, 2)
+  var data = dataRange.getValues();
+
+  for (i in data) {
+    var row = data[i];
+    try {
+      response_data = sendSms(row[0], row[1]);
+      status = "sent";
+    } catch(err) {
+      Logger.log(err);
+      status = "error";
+    }
+    sheet.getRange(startRow + Number(i), 3).setValue(status);
+  }
+}
+
+
+//// PROCESS FORM RESPONSES ////
+function addAllContacts() {
+  var cal = CalendarApp.getCalendarById(ScriptProperties.getProperty('calId'));
+
+  var ss = SpreadsheetApp.getActive();
+  var sheet = ss.getSheetByName('Form Responses 1');
+  var range = sheet.getDataRange();
+  var values = range.getValues();
+
+  // iterate through spreadsheet: all submissions (rows)
+  for (var i = 1; i < values.length; i++) {
+
+    // get details
+    var fname = values[i][FNAME];
+    var lname = values[i][LNAME];
+    var email = values[i][EMAIL];
+    var phone = values[i][PHONE];
+
+    try {
+      addContactByPhone(phone, fname, lname, email);
+    } catch (e) {
+      Logger.log(e);
+      Logger.log([fname, lname, email, phone].join(" "));
+    }
+  }
+}
+
+
+function addContactByPhone(phone, fname, lname, email) {
+  if ((ContactsApp.getContactsByPhone(phone, '').length == 0) && (ContactsApp.getContactsByPhone(phone, ContactsApp.Field.MAIN_PHONE).length == 0)) {
+    var c = ContactsApp.createContact(fname, lname, email);
+    c.addPhone(ContactsApp.Field.MAIN_PHONE, phone);
+
+    var group = ContactsApp.getContactGroup("System Group: My Contacts");
+    group.addContact(c);
+  }
+}
+
+
+// create calendar event & send invite
+function createVolunteerSlot_(cal, name, email, startDateTime, endDateTime, reminders) {
+  var event = cal.createEvent(name + ' -Victory Booth shift',
+                              new Date(startDateTime),
+                              new Date(endDateTime),
+                              {location: "Victory Booths @ Manny's, 485 Valencia St, San Francisco, CA 94103, USA",
+                               guests: email,
+                               sendInvites: true}).setGuestsCanSeeGuests(false);
+  for (var i = 0; i < 5; i++) {
+    if (i < reminders.length) {
+      event.addEmailReminder(reminders[i]);
+    } else {
+      break;
+    }
+  }
+
+  return event;
+}
 
 
 /**
  * Auto-trigger on form submit
  */
 function _onFormSubmit(e) {
-  sendInvites(); // TODO: improve efficiency by not running everything
+  sendInvite(e.values);
 }
 
 
@@ -176,100 +241,111 @@ function _onFormSubmit(e) {
  * @param {object} user An object that contains the user's name and email.
  * @param {Array<String[]>} response An array of data for the user's session choices.
  */
-function sendInvites() {
+function sendInvite(response) {
+
+  // TODO: change date range to use, test email suppression for empties
+  var LAUNCHDAY = 11;
+  var ENDDAY    = 61;
+
   var cal = CalendarApp.getCalendarById(ScriptProperties.getProperty('calId'));
 
   var ss = SpreadsheetApp.getActive();
   var sheet = ss.getSheetByName('Form Responses 1');
   var range = sheet.getDataRange();
   var values = range.getValues();
+  var headers = values[0]
 
-  // define columns
-  var EMAIL = 1;
-  var FNAME = 2;
-  var LNAME = 3;
-  var PHONE = 4;
-  var INVITED = 63;
+  if (!(headers[INVITED] == "Invites Sent?")) {
+    Logger.log("Columns may have shifted!!");
+    return;
+  }
 
-  // TODO: change date range to use, test email suppression for empties
-  var LAUNCHDAY = 11;
-  var ENDDAY    = 61;
+  // get response details
+  var fname = response[FNAME];
+  var lname = response[LNAME];
+  var email = response[EMAIL];
+  var phone = response[PHONE];
 
   // email content
   var subject = "Victory Booth @ Manny’s: information for your upcoming shifts!";
   var html = getDocAsHTML_('11EH4RUDuCZMh6E7UL2WuvxOmA6z9kUOsHTSwHJ5yOeM');
 
-  if (!(values[0][INVITED] == "Invites Sent?")) {
-    Logger.log("Columns may have shifted!!");
-    return;
-  }
+  addContactByPhone(phone, fname, lname, email);
 
-  // iterate through spreadsheet: all submissions (rows)
-  for (var i = 1; i < values.length; i++) { // TODO: run in reverse order, stop at first already processed
+  Logger.log('Processing response for email: ' + email);
 
-    // get details
-    var fname = values[i][FNAME];
-    var lname = values[i][LNAME];
-    var email = values[i][EMAIL];
-    var phone = values[i][PHONE];
+  var timeslots = [];
+  // iterate through dates (columns)
+  for (var j = LAUNCHDAY; j <= ENDDAY; j++) {
+    // TODO: check it's not in the past
 
-    addContactByPhone(phone, fname, lname, email);
+    var entry = response[j];
+    if (entry && !(entry == '-')) { // TODO: test
+      Logger.log('entry: %s', entry);
 
-    if (!values[i][INVITED]) {
+      // assemble date & time info
+      var time = startTimeFromSession_(entry);
+      date = new Date(headers[j] + ', 2020');
+      var timezone = (date > new Date('10/31/2020')) ? ' -0800': ' -0700';
 
-      Logger.log('Row ' + i + ': ' + email);
+      startDateTime = new Date((date.getMonth()+1) + '/' + date.getDate() + ', 2020 ' + time + timezone);
+      endDateTime = new Date(startDateTime);
+      endDateTime.setHours(endDateTime.getHours()+1);
 
-      var timeslots = []; // initialize
+      // create a calendar event
+      var event = createVolunteerSlot_(cal, fname, email, startDateTime, endDateTime, []); // 52*60, 90
+      event.setDescription([fname, lname, phone].join(' '));
+      timeslots.push(Utilities.formatDate(startDateTime, "US/Pacific", "EEEE, MMM d, h:mmaaa")); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
+      Logger.log(timeslots);
 
-      // iterate through dates (columns)
-      for (var j = LAUNCHDAY; j <= ENDDAY; j++) {
-        // TODO: check it's not in the past
-
-        var entry = values[i][j];
-        if (entry && !(entry == '-')) { // TODO: test
-          Logger.log('row, entry: %s', i, entry);
-
-          // assemble date & time info
-          var time = startTimeFromSession_(entry);
-          date = new Date(values[0][j] + ', 2020');
-          var timezone = (date > new Date('10/31/2020')) ? ' -0800': ' -0700';
-
-          startDateTime = new Date((date.getMonth()+1) + '/' + date.getDate() + ', 2020 ' + time + timezone);
-          endDateTime = new Date(startDateTime);
-          endDateTime.setHours(endDateTime.getHours()+1);
-
-          // create a calendar event
-          var event = createVolunteerSlot_(cal, fname, email, startDateTime, endDateTime, []); // 52*60, 90
-          event.setDescription([fname, lname, phone].join(' '));
-          timeslots.push(Utilities.formatDate(startDateTime, "US/Pacific", "EEEE, MMM d, h:mmaaa")); // see https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
-          Logger.log(timeslots);
-
-          // TODO: schedule followup email
-        }
-      }
-
-      if (timeslots.length > 0) {
-        // send info email
-//        var content = html.split('{TIME_AND_DATE}')[0] + '• ' +
-//          timeslots.join('</span></=p><p class=3D"c0"><span class=3D"c3">• ') +
-//            html.split('{TIME_AND_DATE}')[1];
-        var content = subStringIntoTag('{TIME_AND_DATE}', '• ' + timeslots.join('</span></=p><p class=3D"c0"><span class=3D"c3">• '), html);
-//        Logger.log(content);
-        content = subStringIntoTag('{NAME}', fname, content);
-//        Logger.log(content);
-        var body = "To view this email, please enable html in your email client.";
-        Logger.log(email + ': ' + timeslots.join(', '));
-        sendEmail_(email, subject, body, content);
-
-        // mark as processed
-        values[i][INVITED] = true;
-        range.setValues(values); // write values to mark processed
-      }
+      // TODO: schedule followup email
     }
   }
-  Logger.log('done');
+
+  if (timeslots.length > 0) {
+    // send info email
+    var content = subStringIntoTag('{TIME_AND_DATE}', '• ' + timeslots.join('</span></=p><p class=3D"c0"><span class=3D"c3">• '), html);
+    content = subStringIntoTag('{NAME}', fname, content);
+    var body = "To view this email, please enable html in your email client.";
+    Logger.log(email + ': ' + timeslots.join(', '));
+    sendEmail_(email, subject, body, content);
+
+    // find applicable row based on formResponse email
+    Logger.log("Finding matching row for the following response email: " + response[EMAIL]);
+
+    // HACK HACK HACK, reverses the list and grabs the last entry with that email (so makes the assumption it should grab that users
+    // latest submission) should work 99% of the time... (famous last words)
+    row_index = values.map((row) => row[EMAIL]).lastIndexOf(response[EMAIL]);
+    Logger.log("Row index found: " + row_index);
+
+    // mark cell as processed, the +1 is because getRange is 1 indexed ):
+    cell = sheet.getRange(row_index + 1, INVITED + 1);
+    cell.setValue("TRUE");
+  }
+
+  Logger.log('Finished sending invite');
 }
 
+// Decode the time from a session string of form "Session 1: 12:00PM"
+function startTimeFromSession_(seshString) {
+  var sesh = seshString.split(': ')[1].split(':')[0]; // look at hour only, assumes all PM
+  switch(sesh) {
+    case '12':
+      return '12:00:00';
+    case '1':
+      return '13:00:00';
+    case '2':
+      return '14:00:00';
+    case '3':
+      return '15:00:00';
+    case '4':
+      return '16:00:00';
+    case '5':
+      return '17:00:00';
+    case '6':
+      return '18:00:00';
+  }
+}
 
 
 // fill tag in string
@@ -279,6 +355,7 @@ function subStringIntoTag(tag, sub, string) {
 
 
 
+//// FOLLOWUPS ////
 /*
  * Send "thank you" or "sorry you missed us" followup emails
  */
@@ -346,9 +423,6 @@ function sendFollowups() {
         ui.ButtonSet.YES_NO);
   if (result == ui.Button.YES) {
     Logger.log(followups[0]);
-    // define column map
-    var EMAIL = 1;
-    var FNAME = 2;
 
     var thankyouEmails = [];
     var thankyouNames = [];
@@ -357,7 +431,7 @@ function sendFollowups() {
 
     for (var i = 1; i < values.length; i++) {
       var addemail = values[i][EMAIL];
-      if (!(["", "NO SHOW", "CANCEL"].includes(followups[i]))) {
+      if (followups[i] && !(["", "NO SHOW", "CANCEL"].includes(followups[i])) && followups[i].includes("Session")) {
         if (thankyouEmails.indexOf(addemail) < 0) {
           thankyouEmails.push(addemail);
           thankyouNames.push(values[i][FNAME]);
@@ -371,9 +445,10 @@ function sendFollowups() {
     }
     sendThankYouEmails(thankyouEmails, thankyouNames);
     sendSorryYouMissedUsEmails(noshowEmails, noshowNames);
-    ui.alert(emails.length + ' emails sent!');
+    ui.alert(thankyouEmails.length + ' thank you and ' + noshowEmails.length + ' no show emails sent!');
   }
 }
+
 
 function sendThankYouEmails(emails, names) {
   // email content
@@ -389,6 +464,7 @@ function sendThankYouEmails(emails, names) {
   }
 }
 
+
 function sendSorryYouMissedUsEmails(emails, names) {
   // email content
   var subject = "Sorry you missed us!";
@@ -403,6 +479,21 @@ function sendSorryYouMissedUsEmails(emails, names) {
   }
 }
 
+
+// send details email
+function sendEmail_(email, subject, body, content) {
+  MailApp.sendEmail(
+    email,           // recipient
+    subject,         // subject
+    body, {          // body
+      htmlBody: content // advanced options
+    }
+  );
+}
+
+
+
+//// CHECK IN SHEET GENERATION ////
 function createCheckin() {
   var activeSheet = SpreadsheetApp.getActiveSheet();
 
@@ -442,12 +533,6 @@ function createCheckin() {
   }
 
   var daysSessions = selection.getActiveRange().getDisplayValues();
-
-  // define column map
-  var EMAIL = 1;
-  var FNAME = 2;
-  var LNAME = 3;
-  var PHONE = 4;
 
   var sessions = new Map();
   // TODO: remove this hack to sort by session and replace with something real (see below)
@@ -516,86 +601,14 @@ function createCheckin() {
     t.setColumnWidth(2, 50);
     t.setColumnWidth(4, 120);
 
+    body.appendParagraph("\n_____ total this session").setBold(false);
+
     body.appendPageBreak();
   });
 }
 
 
-// TODO: create event, send email, schedule reminder email, all upon form submission
-//function _onFormSubmit(e) {
-//  var user = {name: e.namedValues['First Name'][0] + ' '+ e.namedValues['Last Name'][0],
-//              email: e.namedValues['Email address'][0]};
-//
-//  // Grab the session data again so that we can match it to the user's choices.
-//  var response = [];
-//  var values = SpreadsheetApp.getActive().getSheetByName('Conference Setup').getDataRange().getValues();
-//  for (var i = 1; i < values.length; i++) {
-//    var session = values[i];
-//    var title = session[0];
-//    var day = session[1].toLocaleDateString();
-//    var time = session[2].toLocaleTimeString();
-//    var timeslot = time + ' ' + day;
-//
-//    // For every selection in the response, find the matching timeslot and title
-//    // in the spreadsheet and add the session data to the response array.
-//    if (e.namedValues[timeslot] && e.namedValues[timeslot] == title) {
-//      response.push(session);
-//    }
-//  }
-//  sendInvites_(user, response);
-//  sendDoc_(user, response);
-//}
-
-
-
-// TODO: reformat into checkbox grid form, auto update grid
-
-
-
-
-function addContactByPhone(phone, fname, lname, email) {
-  if ((ContactsApp.getContactsByPhone(phone, '').length == 0) && (ContactsApp.getContactsByPhone(phone, ContactsApp.Field.MAIN_PHONE).length == 0)) {
-    var c = ContactsApp.createContact(fname, lname, email);
-    c.addPhone(ContactsApp.Field.MAIN_PHONE, phone);
-
-    var group = ContactsApp.getContactGroup("System Group: My Contacts");
-    group.addContact(c);
-  }
-}
-
-
-// create calendar event & send invite
-function createVolunteerSlot_(cal, name, email, startDateTime, endDateTime, reminders) {
-  var event = cal.createEvent(name + ' -Victory Booth shift',
-                              new Date(startDateTime),
-                              new Date(endDateTime),
-                              {location: "Victory Booths @ Manny's, 485 Valencia St, San Francisco, CA 94103, USA",
-                               guests: email,
-                               sendInvites: true}).setGuestsCanSeeGuests(false);
-  for (var i = 0; i < 5; i++) {
-    if (i < reminders.length) {
-      event.addEmailReminder(reminders[i]);
-    } else {
-      break;
-    }
-  }
-
-  return event;
-}
-
-
-// send details email
-function sendEmail_(email, subject, body, content) {
-  MailApp.sendEmail(
-    email,           // recipient
-    subject,         // subject
-    body, {          // body
-      htmlBody: content // advanced options
-    }
-  );
-}
-
-
+//// UTILITY ////
 /**
  * get doc contents as HTML
  * see https://stackoverflow.com/questions/39779550/how-to-send-rich-text-emails-with-gmailapp
@@ -610,26 +623,4 @@ function getDocAsHTML_(id) {
   };
   var html = UrlFetchApp.fetch(url,param).getContentText();
   return html;
-}
-
-
-// Decode the time from a session string of form "Session 1: 12:00PM"
-function startTimeFromSession_(seshString) {
-  var sesh = seshString.split(': ')[1].split(':')[0]; // look at hour only, assumes all PM
-  switch(sesh) {
-    case '12':
-      return '12:00:00';
-    case '1':
-      return '13:00:00';
-    case '2':
-      return '14:00:00';
-    case '3':
-      return '15:00:00';
-    case '4':
-      return '16:00:00';
-    case '5':
-      return '17:00:00';
-    case '6':
-      return '18:00:00';
-  }
 }
